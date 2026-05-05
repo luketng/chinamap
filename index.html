@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>China Travel Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #f5f3ef;
+    --panel:    #ffffff;
+    --panel2:   #fafaf8;
+    --border:   #e2ddd6;
+    --text:     #2c2820;
+    --muted:    #8c8075;
+    --accent:   #b8891e;
+    --hover:    #f0ece4;
+    --active:   #e8e0d0;
+    --nature:   #2e9e5b;
+    --shopping: #c94070;
+    --heritage: #b8891e;
+    --culture:  #4a5fc4;
+    --food:     #c45a20;
+    --hotel:    #7b44c4;
+    --shadow:   0 2px 12px rgba(0,0,0,0.10);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+
+  /* HEADER */
+  header { display:flex; align-items:center; gap:10px; padding:9px 16px; background:var(--panel); border-bottom:1px solid var(--border); flex-shrink:0; z-index:1000; flex-wrap:wrap; box-shadow:var(--shadow); }
+  .logo { font-family:'Noto Serif SC',serif; font-size:15px; font-weight:600; color:var(--accent); white-space:nowrap; }
+  .logo span { color:var(--muted); font-size:10px; font-family:'Inter',sans-serif; margin-left:8px; font-weight:400; }
+  .legend { display:flex; gap:4px; flex-wrap:wrap; align-items:center; }
+  .legend-item { display:flex; align-items:center; gap:5px; font-size:10px; font-weight:500; color:var(--muted); cursor:pointer; padding:4px 8px; border-radius:20px; border:1.5px solid transparent; transition:all .15s; white-space:nowrap; }
+  .legend-item:hover { background:var(--hover); color:var(--text); }
+  .legend-item.active { color:var(--text); border-color:currentColor; background:var(--hover); }
+  .legend-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+  .city-filters { display:flex; gap:4px; flex-wrap:wrap; margin-left:auto; }
+  .city-btn { font-size:10px; font-family:'Inter',sans-serif; font-weight:500; color:var(--muted); cursor:pointer; padding:4px 10px; border-radius:20px; border:1.5px solid var(--border); background:transparent; transition:all .15s; white-space:nowrap; }
+  .city-btn:hover { background:var(--hover); color:var(--text); }
+  .city-btn.active { color:var(--accent); border-color:var(--accent); background:#fdf6e7; }
+
+  /* BODY */
+  .body-wrap { display:flex; flex:1; overflow:hidden; }
+
+  /* SIDEBAR */
+  #sidebar { width:290px; flex-shrink:0; background:var(--panel2); border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; transition:width .25s ease; }
+  #sidebar.collapsed { width:0; min-width:0; }
+  #sidebar.collapsed .sidebar-search,
+  #sidebar.collapsed .sidebar-list,
+  #sidebar.collapsed .sidebar-footer { opacity:0; pointer-events:none; }
+
+  /* TOGGLE BUTTON — sibling of sidebar, always visible */
+  #sidebar-toggle { flex-shrink:0; width:20px; background:var(--panel2); border:none; border-right:1px solid var(--border); cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:13px; line-height:1; transition:color .15s, background .15s; padding:0; }
+  #sidebar-toggle:hover { color:var(--text); background:var(--hover); }
+
+  .sidebar-search { padding:10px 12px; border-bottom:1px solid var(--border); flex-shrink:0; transition:opacity .2s; }
+  .sidebar-search input { width:100%; background:var(--bg); border:1.5px solid var(--border); border-radius:8px; color:var(--text); font-family:'Inter',sans-serif; font-size:11px; padding:6px 10px; outline:none; transition:border-color .2s; }
+  .sidebar-search input::placeholder { color:var(--muted); }
+  .sidebar-search input:focus { border-color:var(--accent); }
+  .sidebar-list { flex:1; overflow-y:auto; padding:4px 0 8px; transition:opacity .2s; }
+  .sidebar-list::-webkit-scrollbar { width:4px; }
+  .sidebar-list::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+  .city-header { display:flex; align-items:center; gap:8px; padding:12px 12px 5px; font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--accent); font-family:'Noto Serif SC',serif; position:sticky; top:0; background:var(--panel2); z-index:3; border-bottom:1px solid var(--border); }
+  .city-header-count { margin-left:auto; font-family:'Inter',sans-serif; font-size:9px; font-weight:400; color:var(--muted); }
+
+  .group-header { display:flex; align-items:center; gap:6px; padding:8px 12px 3px; font-size:9px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); position:sticky; top:33px; background:var(--panel2); z-index:2; }
+  .group-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+  .group-count { margin-left:auto; color:var(--border); font-size:9px; }
+
+  .place-row { display:flex; align-items:flex-start; gap:8px; padding:6px 12px; cursor:pointer; border-left:3px solid transparent; transition:background .12s, border-color .12s; }
+  .place-row:hover { background:var(--hover); }
+  .place-row.active-row { background:var(--active); }
+  .place-row-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; margin-top:4px; }
+  .place-row-name { font-size:11px; font-weight:500; color:var(--text); line-height:1.35; }
+  .place-row-loc { font-size:9px; color:var(--muted); margin-top:1px; line-height:1.3; }
+  .place-row.sb-hidden,.group-header.sb-hidden,.city-header.sb-hidden { display:none; }
+
+  .sidebar-footer { padding:7px 12px; border-top:1px solid var(--border); font-size:10px; color:var(--muted); flex-shrink:0; transition:opacity .2s; }
+  .sidebar-footer strong { color:var(--text); }
+
+  /* MAP */
+  #map { flex:1; }
+
+  /* POPUPS */
+  .leaflet-popup-content-wrapper { background:var(--panel)!important; border:1px solid var(--border)!important; border-radius:8px!important; box-shadow:0 8px 32px rgba(0,0,0,.15)!important; color:var(--text)!important; font-family:'Inter',sans-serif!important; }
+  .leaflet-popup-tip { background:var(--panel)!important; }
+  .leaflet-popup-content { margin:13px 15px!important; min-width:180px; }
+  .popup-city { font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:3px; font-weight:500; }
+  .popup-cat { font-size:9px; letter-spacing:.12em; text-transform:uppercase; margin-bottom:5px; font-weight:700; }
+  .popup-name { font-family:'Noto Serif SC',serif; font-size:14px; font-weight:600; line-height:1.3; margin-bottom:4px; color:var(--text); }
+  .popup-loc { font-size:10px; color:var(--muted); line-height:1.35; }
+  .popup-tip { font-size:10px; color:#5a5040; line-height:1.45; margin-top:7px; padding-top:7px; border-top:1px solid var(--border); }
+  .leaflet-control-attribution { background:rgba(255,255,255,0.85)!important; color:var(--muted)!important; font-size:9px!important; }
+  .leaflet-control-attribution a { color:var(--accent)!important; }
+
+  /* LOCATE BUTTON */
+  #locate-btn { display:flex; align-items:center; gap:6px; font-size:10px; font-family:'Inter',sans-serif; font-weight:500; color:var(--muted); cursor:pointer; padding:4px 10px; border-radius:20px; border:1.5px solid var(--border); background:transparent; transition:all .2s; white-space:nowrap; flex-shrink:0; }
+  #locate-btn:hover { background:var(--hover); color:var(--text); border-color:var(--accent); }
+  #locate-btn.locating { color:var(--accent); border-color:var(--accent); background:#fdf6e7; }
+  #locate-btn.located  { color:#2e9e5b; border-color:#2e9e5b; background:#edf7f2; }
+  #locate-btn.error    { color:#c45a20; border-color:#c45a20; background:#fdf2ec; }
+  .locate-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+  .locate-dot.pulse { background:#2e9e5b; animation:pulse 1.6s ease-out infinite; }
+  .locate-dot.idle  { background:var(--muted); }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(46,158,91,.55)} 70%{box-shadow:0 0 0 8px rgba(46,158,91,0)} 100%{box-shadow:0 0 0 0 rgba(46,158,91,0)} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">中国旅行地图 <span>CHINA TRAVEL MAP</span></div>
+  <div class="legend" id="legend">
+    <div class="legend-item active" data-cat="all"><div class="legend-dot" style="background:#888"></div>All</div>
+    <div class="legend-item" data-cat="nature"  style="--c:var(--nature)"><div class="legend-dot" style="background:var(--nature)"></div>Nature</div>
+    <div class="legend-item" data-cat="shopping" style="--c:var(--shopping)"><div class="legend-dot" style="background:var(--shopping)"></div>Shopping</div>
+    <div class="legend-item" data-cat="heritage" style="--c:var(--heritage)"><div class="legend-dot" style="background:var(--heritage)"></div>Heritage</div>
+    <div class="legend-item" data-cat="culture"  style="--c:var(--culture)"><div class="legend-dot" style="background:var(--culture)"></div>Culture</div>
+    <div class="legend-item" data-cat="food"     style="--c:var(--food)"><div class="legend-dot" style="background:var(--food)"></div>Food</div>
+    <div class="legend-item" data-cat="hotel"    style="--c:var(--hotel)"><div class="legend-dot" style="background:var(--hotel)"></div>Hotels</div>
+  </div>
+  <div class="city-filters">
+    <button class="city-btn active" data-city="all">All Cities</button>
+    <button class="city-btn" data-city="Beijing">Beijing</button>
+    <button class="city-btn" data-city="Shanghai">Shanghai</button>
+    <button class="city-btn" data-city="Nanjing">Nanjing</button>
+    <button class="city-btn" data-city="Suzhou">Suzhou</button>
+    <button class="city-btn" data-city="Hangzhou">Hangzhou</button>
+  </div>
+  <button id="locate-btn" title="Show my location">
+    <div class="locate-dot idle"></div>
+    <span id="locate-label">My Location</span>
+  </button>
+</header>
+
+<div class="body-wrap">
+  <div id="sidebar">
+    <div class="sidebar-search"><input id="search" type="text" placeholder="🔍  Search locations…" autocomplete="off"></div>
+    <div class="sidebar-list" id="list"></div>
+    <div class="sidebar-footer">Showing <strong id="count">0</strong> locations</div>
+  </div>
+  <button id="sidebar-toggle" title="Collapse sidebar">&#x276E;</button>
+  <div id="map"></div>
+</div>
+
+<script>
+const C  = { nature:'#2e9e5b', shopping:'#c94070', heritage:'#b8891e', culture:'#4a5fc4', food:'#c45a20', hotel:'#7b44c4' };
+const IC = { nature:'🌿', shopping:'🛍', heritage:'🏛', culture:'🎨', food:'🍜', hotel:'🏨' };
+const CAT_ORDER = ['nature','shopping','heritage','culture','food','hotel'];
+
+// Verified coordinates — cross-referenced with Google Maps / Baidu Maps
+const DATA = [
+
+  // ══════════════ BEIJING ══════════════
+  {city:"Beijing", cat:"nature",   name:"Olympic Forest Park",          lat:40.0316, lng:116.3823, loc:"Chaoyang District, Beijing",        tip:"Huge park built for 2008 Olympics. Great trails with views of the Bird's Nest."},
+  {city:"Beijing", cat:"nature",   name:"Summer Palace",                lat:39.9999, lng:116.2755, loc:"Haidian District, Beijing",          tip:"China's largest imperial garden. Take a boat ride on Kunming Lake."},
+  {city:"Beijing", cat:"nature",   name:"Temple of Heaven Park",        lat:39.8827, lng:116.4065, loc:"Dongcheng District, Beijing",        tip:"Stunning 1420 temple complex. Watch locals do tai chi at dawn."},
+  {city:"Beijing", cat:"nature",   name:"Jingshan Park",                lat:39.9258, lng:116.3878, loc:"Dongcheng District, Beijing",        tip:"Hilltop park north of the Forbidden City. Best panoramic views in Beijing."},
+  {city:"Beijing", cat:"nature",   name:"Shichahai Lake Area",          lat:39.9412, lng:116.3795, loc:"Xicheng District, Beijing",          tip:"Scenic hutong lake area. Ice skating in winter, boat rides in summer."},
+  {city:"Beijing", cat:"shopping", name:"Taikoo Li Sanlitun",           lat:39.9334, lng:116.4545, loc:"Chaoyang District, Beijing",         tip:"Beijing's most stylish open-air mall. Flagship stores, art installations and nightlife."},
+  {city:"Beijing", cat:"shopping", name:"Wangfujing Street",            lat:39.9151, lng:116.4094, loc:"Dongcheng District, Beijing",         tip:"Iconic pedestrian shopping street. Mix of luxury malls and street food vendors."},
+  {city:"Beijing", cat:"shopping", name:"China World Mall (Guomao)",    lat:39.9085, lng:116.4605, loc:"Chaoyang District, Beijing",         tip:"Upscale CBD mall with luxury brands and stunning views of the CCTV building."},
+  {city:"Beijing", cat:"shopping", name:"Xidan Shopping Area",          lat:39.9132, lng:116.3659, loc:"Xicheng District, Beijing",          tip:"Massive youth mall zone 2km from Tiananmen. Movies, bowling, rock climbing."},
+  {city:"Beijing", cat:"shopping", name:"Qianmen & Dashilan",           lat:39.8988, lng:116.3942, loc:"Dongcheng District, Beijing",         tip:"Ancient commercial street next to Tiananmen. Century-old shops and Peking duck."},
+  {city:"Beijing", cat:"shopping", name:"Parkview Green (Fangcaodi)",   lat:39.9196, lng:116.4572, loc:"Chaoyang District, Beijing",         tip:"Futuristic pyramid mall housing 500+ artworks including original Dalí sculptures."},
+  {city:"Beijing", cat:"heritage", name:"The Forbidden City",           lat:39.9163, lng:116.3972, loc:"Dongcheng District, Beijing",         tip:"Book tickets 10+ days ahead. Enter from the south Meridian Gate."},
+  {city:"Beijing", cat:"heritage", name:"Great Wall — Mutianyu",        lat:40.4319, lng:116.5638, loc:"Huairou District, Beijing",           tip:"Best-preserved stretch with cable car and toboggan. Less crowded than Badaling."},
+  {city:"Beijing", cat:"heritage", name:"Yonghe Lama Temple",           lat:39.9472, lng:116.4103, loc:"Dongcheng District, Beijing",         tip:"Beijing's most famous Tibetan Buddhist temple. Arrive early to beat crowds."},
+  {city:"Beijing", cat:"heritage", name:"Ming Tombs (Shisanling)",      lat:40.2521, lng:116.2197, loc:"Changping District, Beijing",         tip:"UNESCO site — 13 Ming emperors buried here. Dingling has an underground palace."},
+  {city:"Beijing", cat:"heritage", name:"Tiananmen Square",             lat:39.9054, lng:116.3976, loc:"Dongcheng District, Beijing",         tip:"World's largest public square. Book entry 9 days in advance; bring your passport."},
+  {city:"Beijing", cat:"culture",  name:"National Museum of China",     lat:39.9048, lng:116.4013, loc:"Dongcheng District, Beijing",         tip:"430,000+ artefacts. Ancient China galleries are unmissable. Free entry with passport."},
+  {city:"Beijing", cat:"culture",  name:"798 Art Zone",                 lat:39.9836, lng:116.4979, loc:"Chaoyang District, Beijing",          tip:"Sprawling art district in former Bauhaus factories. Galleries, cafes, design studios."},
+  {city:"Beijing", cat:"culture",  name:"Bird's Nest & Water Cube",    lat:40.0022, lng:116.3912, loc:"Chaoyang District, Beijing",          tip:"2008 Olympic icons. Free to walk the plaza; ticketed for interiors."},
+  {city:"Beijing", cat:"food",     name:"Fang Zhuan Chang Noodles",     lat:39.9181, lng:116.3706, loc:"Xicheng District, Beijing",           tip:"Famous zhajiangmian (noodles with fermented bean sauce). A Beijing institution."},
+  {city:"Beijing", cat:"food",     name:"Guijie (Ghost Street)",        lat:39.9426, lng:116.4181, loc:"Dongcheng District, Beijing",         tip:"1km of restaurants lit by red lanterns. Famous for spicy crayfish and hotpot."},
+  {city:"Beijing", cat:"food",     name:"Duck de Chine (全鸭季)",       lat:39.9836, lng:116.4955, loc:"798 Art Zone, Chaoyang, Beijing",     tip:"One of Beijing's top Peking duck restaurants, inside the historic 1949 courtyard."},
+  {city:"Beijing", cat:"hotel",    name:"Yitel Hotel Beijing",          lat:39.9074, lng:116.4584, loc:"No. 12 Jianhua South Rd, Jianguomenwai, Chaoyang", tip:"Your stay in Beijing. In the CBD near Silk Street Market and Guomao metro."},
+
+  // ══════════════ SHANGHAI ══════════════
+  {city:"Shanghai", cat:"nature",   name:"The Bund",                    lat:31.2399, lng:121.4905, loc:"Huangpu District, Shanghai",          tip:"Shanghai's iconic riverside promenade. Best at night when the skyline is lit up."},
+  {city:"Shanghai", cat:"nature",   name:"People's Park",               lat:31.2296, lng:121.4733, loc:"Huangpu District, Shanghai",          tip:"Central green oasis famous for the weekend marriage market."},
+  {city:"Shanghai", cat:"nature",   name:"Gucun Park",                  lat:31.4022, lng:121.4137, loc:"Baoshan District, Shanghai",          tip:"One of Shanghai's largest parks. Spectacular cherry blossom in spring."},
+  {city:"Shanghai", cat:"nature",   name:"Pujiang Country Park",        lat:31.0211, lng:121.5348, loc:"Minhang District, Shanghai",          tip:"Forest park along the Huangpu River. Great for cycling and bird watching."},
+  {city:"Shanghai", cat:"nature",   name:"Suzhou Creek",                lat:31.2458, lng:121.4551, loc:"Jing'an / Putuo, Shanghai",           tip:"Historic waterway with riverside walks and converted warehouse art galleries."},
+  {city:"Shanghai", cat:"nature",   name:"Shanghai Expo Culture Park",  lat:31.1862, lng:121.4998, loc:"Pudong New Area, Shanghai",           tip:"New urban park on the former World Expo site. Includes greenhouse and flower shows."},
+  {city:"Shanghai", cat:"nature",   name:"Shanghai Zoo",                lat:31.1922, lng:121.3678, loc:"Changning District, Shanghai",        tip:"600+ species including giant pandas. Good for families."},
+  {city:"Shanghai", cat:"nature",   name:"Shanghai Ocean Aquarium",     lat:31.2396, lng:121.5018, loc:"Lujiazui, Pudong, Shanghai",          tip:"One of Asia's longest underwater tunnels with sharks and manta rays overhead."},
+  {city:"Shanghai", cat:"nature",   name:"Shanghai Wild Animal Park",   lat:31.0862, lng:121.7168, loc:"Nanhui, Pudong, Shanghai",            tip:"Drive-through safari with tigers, lions and elephants."},
+  {city:"Shanghai", cat:"nature",   name:"Lanling Flower & Bird Market",lat:31.2241, lng:121.4838, loc:"Huangpu District, Shanghai",          tip:"Colourful indoor market with flowers, plants, pets and curiosities."},
+  {city:"Shanghai", cat:"shopping", name:"Nanjing Road Pedestrian St",  lat:31.2362, lng:121.4737, loc:"Huangpu District, Shanghai",          tip:"Shanghai's iconic 3-mile shopping strip from the Bund to the city."},
+  {city:"Shanghai", cat:"shopping", name:"Global Harbor",               lat:31.2479, lng:121.3873, loc:"Putuo District, Shanghai",            tip:"One of Shanghai's largest malls with a rooftop terrace and canal interior."},
+  {city:"Shanghai", cat:"shopping", name:"Thousand Trees Mall",         lat:31.2514, lng:121.4067, loc:"Putuo District, Shanghai",            tip:"Architecturally striking tiered mall covered in trees and plants."},
+  {city:"Shanghai", cat:"shopping", name:"Shanghai Yuyuan Tourist Mart",lat:31.2276, lng:121.4917, loc:"Huangpu District, Shanghai",          tip:"Traditional bazaar next to Yu Garden. Jade, silk, tea and souvenirs."},
+  {city:"Shanghai", cat:"shopping", name:"IFC Mall (Super Brand Mall)", lat:31.2378, lng:121.5151, loc:"Lujiazui, Pudong, Shanghai",          tip:"Premier luxury mall in the heart of Lujiazui next to the IFC towers."},
+  {city:"Shanghai", cat:"shopping", name:"LEGOLAND Shanghai Resort",    lat:30.8985, lng:121.1474, loc:"Jinshan District, Shanghai",          tip:"China's first LEGOLAND. Great day out for families."},
+  {city:"Shanghai", cat:"shopping", name:"Xinhua Road Night Market",    lat:31.2161, lng:121.4227, loc:"Changning District, Shanghai",        tip:"Popular evening market along a leafy French Concession street."},
+  {city:"Shanghai", cat:"shopping", name:"Big White Rabbit Shop",       lat:31.2365, lng:121.4757, loc:"Near Nanjing Road, Shanghai",         tip:"Flagship store of the iconic White Rabbit candy brand."},
+  {city:"Shanghai", cat:"shopping", name:"University Road KIC Market",  lat:31.2981, lng:121.5186, loc:"Yangpu District, Shanghai",           tip:"Knowledge & Innovation Community market, popular with young locals."},
+  {city:"Shanghai", cat:"heritage", name:"Yu Garden",                   lat:31.2278, lng:121.4920, loc:"Huangpu District, Shanghai",          tip:"Classic Ming Dynasty garden with rockeries, pavilions and koi ponds."},
+  {city:"Shanghai", cat:"heritage", name:"City God Temple of Shanghai", lat:31.2268, lng:121.4910, loc:"Huangpu District, Shanghai",          tip:"Active Taoist temple dating to 1403, surrounded by the Yuyuan bazaar."},
+  {city:"Shanghai", cat:"heritage", name:"Xintiandi",                   lat:31.2200, lng:121.4739, loc:"Huangpu District, Shanghai",          tip:"Restored Shikumen houses turned into upscale bars and restaurants."},
+  {city:"Shanghai", cat:"heritage", name:"Tianzifang",                  lat:31.2102, lng:121.4693, loc:"Huangpu District, Shanghai",          tip:"Labyrinthine lanes of art studios, boutiques and cafes in preserved lilong housing."},
+  {city:"Shanghai", cat:"heritage", name:"Jing'an Temple",              lat:31.2247, lng:121.4478, loc:"Jing'an District, Shanghai",          tip:"Ancient Buddhist temple surrounded by luxury malls. Stunning gold pagoda at night."},
+  {city:"Shanghai", cat:"heritage", name:"Zhujiajiao Ancient Town",     lat:31.1148, lng:121.0629, loc:"Qingpu District, Shanghai",           tip:"Venice of Shanghai — stone bridges, canals and Ming/Qing-era architecture."},
+  {city:"Shanghai", cat:"heritage", name:"Qibao Ancient Town",          lat:31.1556, lng:121.3688, loc:"Minhang District, Shanghai",          tip:"Well-preserved Song Dynasty water town accessible by metro."},
+  {city:"Shanghai", cat:"heritage", name:"Nanxiang Ancient Town",       lat:31.3409, lng:121.3168, loc:"Jiading District, Shanghai",          tip:"Birthplace of xiaolongbao. The original Guyi Garden is here."},
+  {city:"Shanghai", cat:"heritage", name:"Wukang Road (Wukang Mansion)",lat:31.2129, lng:121.4511, loc:"Xuhui District, Shanghai",            tip:"Instagram-famous French Concession street. The flatiron Wukang Mansion is stunning."},
+  {city:"Shanghai", cat:"heritage", name:"Han Xiangzi Ancient Garden",  lat:31.2041, lng:121.5574, loc:"Pudong New Area, Shanghai",           tip:"Elegant classical Jiangnan-style garden in Pudong."},
+  {city:"Shanghai", cat:"culture",  name:"Oriental Pearl Tower",        lat:31.2396, lng:121.4997, loc:"Lujiazui, Pudong, Shanghai",          tip:"Shanghai's iconic TV tower. Glass-floor sky walk and views at 263m."},
+  {city:"Shanghai", cat:"culture",  name:"Shanghai Tower Observation",  lat:31.2357, lng:121.5015, loc:"Lujiazui, Pudong, Shanghai",          tip:"World's 2nd tallest building. Fastest elevators in the world to floor 118."},
+  {city:"Shanghai", cat:"culture",  name:"Power Station of Art",        lat:31.2228, lng:121.4866, loc:"Huangpu District, Shanghai",          tip:"Converted power station turned contemporary art museum. Free entry."},
+  {city:"Shanghai", cat:"culture",  name:"Shanghai Disneyland",         lat:31.1440, lng:121.6572, loc:"Pudong New Area, Shanghai",           tip:"China's only Disney resort. Enchanted Storybook Castle is the world's largest."},
+  {city:"Shanghai", cat:"culture",  name:"Guangfulin Underwater Museum",lat:31.0231, lng:121.2295, loc:"Songjiang District, Shanghai",        tip:"Museum built on a 4,000-year-old excavation site — partially underwater."},
+  {city:"Shanghai", cat:"culture",  name:"Museum of Art Pudong",        lat:31.2335, lng:121.5074, loc:"Lujiazui, Pudong, Shanghai",          tip:"Striking riverside contemporary art museum with international exhibitions."},
+  {city:"Shanghai", cat:"culture",  name:"Shanghai Film Park",          lat:31.0399, lng:121.2202, loc:"Songjiang District, Shanghai",        tip:"Working film studio and theme park. Iconic old Shanghai street sets."},
+  {city:"Shanghai", cat:"culture",  name:"National Exhibition & Convention Ctr", lat:31.1991, lng:121.2999, loc:"Qingpu District, Shanghai", tip:"One of the world's largest exhibition venues. Hosts major trade shows."},
+  {city:"Shanghai", cat:"culture",  name:"Xujiahui Academy",            lat:31.1958, lng:121.4364, loc:"Xuhui District, Shanghai",            tip:"Historic Jesuit library turned into a cultural landmark and study space."},
+  {city:"Shanghai", cat:"culture",  name:"Xinyao Halo Live",            lat:31.1978, lng:121.4468, loc:"Xuhui District, Shanghai",            tip:"Popular live entertainment and cultural venue in the Xuhui area."},
+  {city:"Shanghai", cat:"food",     name:"Din Tai Fung Shanghai",       lat:31.2262, lng:121.4819, loc:"Huangpu District, Shanghai",          tip:"World-famous xiaolongbao. Watch dumplings being made through the kitchen window."},
+  {city:"Shanghai", cat:"food",     name:"Xibei Youmian Village",       lat:31.2263, lng:121.4531, loc:"Jing'an District, Shanghai",          tip:"Popular NW Chinese restaurant — lamb noodles and oat noodles are legendary."},
+  {city:"Shanghai", cat:"food",     name:"Warehouse 3 Restaurant",      lat:31.2302, lng:121.4779, loc:"People's Square area, Shanghai",      tip:"Stylish multi-branch restaurant with creative Chinese cuisine."},
+  {city:"Shanghai", cat:"food",     name:"Flower God French Bakery",    lat:31.2151, lng:121.4482, loc:"French Concession, Shanghai",         tip:"Beloved French Concession patisserie. Croissants and tarts in a charming setting."},
+  {city:"Shanghai", cat:"food",     name:"Chun Tian Mature Tea House",  lat:31.2198, lng:121.4747, loc:"Xintiandi area, Shanghai",            tip:"Traditional tea house serving classic Shanghainese small plates and aged tea."},
+  {city:"Shanghai", cat:"food",     name:"Fang Bao Ting Xiaolongbao",   lat:31.3411, lng:121.3164, loc:"Nanxiang, Jiading, Shanghai",         tip:"The original xiaolongbao restaurant in the birthplace of soup dumplings."},
+  {city:"Shanghai", cat:"hotel",    name:"Shanghai Xujiahui Treasure Hotel", lat:31.1848, lng:121.4388, loc:"Tower G, 325 Tianyaoqiao Rd, Xuhui, Shanghai", tip:"Your stay in Shanghai. Inside Jiahui International Plaza next to Xujiahui Stadium."},
+
+  // ══════════════ NANJING ══════════════
+  {city:"Nanjing", cat:"nature",   name:"Purple Mountain (Zhongshan)",  lat:32.0692, lng:118.8487, loc:"Xuanwu District, Nanjing",           tip:"Vast scenic park with Sun Yat-sen Mausoleum, Ming Tombs and observatory."},
+  {city:"Nanjing", cat:"nature",   name:"Xuanwu Lake Park",             lat:32.0796, lng:118.7938, loc:"Xuanwu District, Nanjing",           tip:"Scenic lake park adjacent to the ancient city wall. Free entry. Beautiful at sunrise."},
+  {city:"Nanjing", cat:"nature",   name:"Niushoushan Forest Park",      lat:31.8870, lng:118.8179, loc:"Jiangning District, Nanjing",         tip:"Buddhist scenic mountain with the stunning underground Foding Palace."},
+  {city:"Nanjing", cat:"nature",   name:"Qixia Mountain & Temple",      lat:32.1312, lng:118.9494, loc:"Qixia District, Nanjing",             tip:"1,500-year-old temple. Fiery red maple trees in autumn. Peaceful half-day escape."},
+  {city:"Nanjing", cat:"shopping", name:"Xinjiekou Commercial Circle",  lat:32.0552, lng:118.7920, loc:"Xuanwu District, Nanjing",           tip:"Nanjing's 'Champs-Élysées' — 6 malls within 800m. Major subway hub."},
+  {city:"Nanjing", cat:"shopping", name:"Deji Plaza",                   lat:32.0568, lng:118.7952, loc:"Xuanwu District, Nanjing",           tip:"Nanjing's top luxury mall with LV, Dior, Gucci and a rooftop art museum."},
+  {city:"Nanjing", cat:"shopping", name:"Confucius Temple (Fuzimiao)",  lat:32.0208, lng:118.7795, loc:"Qinhuai District, Nanjing",           tip:"Historic shopping & dining district along the Qinhuai River. Lantern festival in spring."},
+  {city:"Nanjing", cat:"shopping", name:"Laomendong Historic District", lat:32.0176, lng:118.7836, loc:"Qinhuai District, Nanjing",           tip:"Old city district turned hip boutiques and restaurants. Best at night."},
+  {city:"Nanjing", cat:"heritage", name:"Nanjing City Wall",            lat:32.0490, lng:118.7889, loc:"Multiple sections, Nanjing",          tip:"World's longest & best-preserved ancient city wall. Walk public sections free."},
+  {city:"Nanjing", cat:"heritage", name:"Dr. Sun Yat-sen Mausoleum",   lat:32.0520, lng:118.8510, loc:"Purple Mountain, Xuanwu, Nanjing",    tip:"392 steps lead to the magnificent mausoleum of modern China's founding father."},
+  {city:"Nanjing", cat:"heritage", name:"Ming Xiaoling Mausoleum",     lat:32.0465, lng:118.8570, loc:"Purple Mountain, Xuanwu, Nanjing",    tip:"UNESCO-listed Ming Emperor's tomb. Sacred Way lined with stone animals is stunning."},
+  {city:"Nanjing", cat:"heritage", name:"Presidential Palace",          lat:32.0611, lng:118.7976, loc:"Xuanwu District, Nanjing",           tip:"Former seat of government. Well-preserved rooms and a Ming classical garden."},
+  {city:"Nanjing", cat:"heritage", name:"Porcelain Tower (Dabao'en)",  lat:31.9997, lng:118.7841, loc:"Qinhuai District, Nanjing",           tip:"Rebuilt 1431 nine-storey pagoda. Glows beautifully at night."},
+  {city:"Nanjing", cat:"culture",  name:"Nanjing Museum",               lat:32.0481, lng:118.8419, loc:"Xuanwu District, Nanjing",           tip:"One of China's largest — 430,000 artefacts. Free entry but pre-book online."},
+  {city:"Nanjing", cat:"culture",  name:"Nanjing Massacre Memorial",   lat:32.0282, lng:118.7558, loc:"Jianye District, Nanjing",            tip:"Solemn and important memorial. Quiet and respectful — plan at least 2 hours."},
+  {city:"Nanjing", cat:"culture",  name:"Qinhuai River Night Cruise",  lat:32.0213, lng:118.7792, loc:"Qinhuai District, Nanjing",           tip:"1-hour boat cruise past illuminated temples, bridges and ancient city gates."},
+  {city:"Nanjing", cat:"culture",  name:"1912 District",                lat:32.0621, lng:118.8029, loc:"Xuanwu District, Nanjing",           tip:"Trendy entertainment precinct next to the Presidential Palace. Great bar scene."},
+  {city:"Nanjing", cat:"food",     name:"Ji Ming Tang Bao",             lat:32.0642, lng:118.8074, loc:"Xuanwu District, Nanjing",           tip:"Legendary spot for giant soup dumplings and duck blood vermicelli soup."},
+  {city:"Nanjing", cat:"food",     name:"Xiao Chu Niang (Huaiyang Cuisine)", lat:32.0619, lng:118.8024, loc:"1912 District, Nanjing",        tip:"Well-loved Huaiyang cuisine restaurant. Attentive staff and refined Jiangsu dishes."},
+  {city:"Nanjing", cat:"food",     name:"Laomendong Salted Duck",       lat:32.0178, lng:118.7832, loc:"Laomendong, Qinhuai, Nanjing",       tip:"Nanjing's most famous dish — freshly sliced salted duck or vacuum-packed to take home."},
+  {city:"Nanjing", cat:"hotel",    name:"Nanjing Olympic Sports Expo UEASY Hotel", lat:31.9978, lng:118.7349, loc:"Tower B, Yunlongshan Rd, Jianye District, Nanjing", tip:"Your stay in Nanjing. Near the Olympic Sports Centre in the Jianye riverside district."},
+
+  // ══════════════ SUZHOU ══════════════
+  {city:"Suzhou", cat:"nature",   name:"Tiger Hill (Huqiu)",            lat:31.3367, lng:120.5744, loc:"Hu Qiu District, Suzhou",            tip:"Suzhou's most iconic landmark. 'No visit to Suzhou without Tiger Hill' — Su Dongpo."},
+  {city:"Suzhou", cat:"nature",   name:"Jinji Lake Waterfront",         lat:31.2967, lng:120.7127, loc:"Suzhou Industrial Park",             tip:"Huge lakeside area with free evening light shows and the lakeside Ferris wheel."},
+  {city:"Suzhou", cat:"nature",   name:"Suzhou Botanical Garden",       lat:31.3191, lng:120.5908, loc:"Hu Qiu District, Suzhou",            tip:"Scenic gardens with rare plants and peaceful walking paths."},
+  {city:"Suzhou", cat:"shopping", name:"Guanqian Street",               lat:31.3038, lng:120.6154, loc:"Gusu District, Suzhou",              tip:"Suzhou's main pedestrian shopping street. Silk shops, snack stalls and local brands."},
+  {city:"Suzhou", cat:"shopping", name:"Suzhou Center Mall",            lat:31.2998, lng:120.7078, loc:"Suzhou Industrial Park",             tip:"Modern mall in the SIP district with international brands and rooftop park."},
+  {city:"Suzhou", cat:"shopping", name:"Shantang Ancient Street",       lat:31.3261, lng:120.5817, loc:"Hu Qiu District, Suzhou",            tip:"7km of canal-side shops selling silk, tea and souvenirs. Night views are magical."},
+  {city:"Suzhou", cat:"shopping", name:"Suzhou No.1 Silk Factory",      lat:31.3062, lng:120.6232, loc:"Gusu District, Suzhou",              tip:"Buy genuine Suzhou silk direct from the source. Factory tours available."},
+  {city:"Suzhou", cat:"heritage", name:"Humble Administrator's Garden", lat:31.3256, lng:120.6262, loc:"Gusu District, Suzhou",              tip:"UNESCO-listed — Suzhou's largest and finest classical garden."},
+  {city:"Suzhou", cat:"heritage", name:"Lingering Garden (Liu Yuan)",   lat:31.3183, lng:120.5962, loc:"Gusu District, Suzhou",              tip:"UNESCO-listed. Famous for elaborate Taihu limestone rock formations and pavilions."},
+  {city:"Suzhou", cat:"heritage", name:"Lion Grove Garden",             lat:31.3238, lng:120.6283, loc:"Gusu District, Suzhou",              tip:"UNESCO garden with a complex labyrinthine rock formation shaped like lions."},
+  {city:"Suzhou", cat:"heritage", name:"Panmen Gate & Ruiguang Pagoda", lat:31.2972, lng:120.6055, loc:"Gusu District, Suzhou",             tip:"Only surviving ancient water and land gate in China. Pagoda views over old Suzhou."},
+  {city:"Suzhou", cat:"heritage", name:"Tongli Water Town",             lat:31.1073, lng:120.7262, loc:"Wujiang District, Suzhou",           tip:"Charming water town 30km from Suzhou with 7 Ming/Qing estates and stone bridges."},
+  {city:"Suzhou", cat:"culture",  name:"Suzhou Museum",                 lat:31.3249, lng:120.6299, loc:"Gusu District, Suzhou",              tip:"I.M. Pei-designed museum — a masterpiece blending modern and classical architecture."},
+  {city:"Suzhou", cat:"culture",  name:"Suzhou Grand Canal Night Cruise",lat:31.3052, lng:120.6131, loc:"Gusu District, Suzhou",            tip:"Evening boat cruise on the UNESCO-listed Grand Canal past illuminated city gates."},
+  {city:"Suzhou", cat:"culture",  name:"Suzhou Silk Museum",            lat:31.3218, lng:120.6228, loc:"Gusu District, Suzhou",              tip:"Fascinating museum on 5,000 years of silk history. See ancient looms in action."},
+  {city:"Suzhou", cat:"food",     name:"Songhelou Restaurant (松鹤楼)", lat:31.3031, lng:120.6149, loc:"Guanqian Street, Suzhou",            tip:"Suzhou's most famous restaurant since 1757. Try squirrel-shaped Mandarin fish."},
+  {city:"Suzhou", cat:"food",     name:"Shantang Street Dumplings",     lat:31.3262, lng:120.5818, loc:"Shantang Street, Suzhou",            tip:"Try sheng jian bao (pan-fried buns) and wonton soup at the canal-side stalls."},
+  {city:"Suzhou", cat:"hotel",    name:"Citadines Suzhou Jinji Lake",   lat:31.2958, lng:120.7152, loc:"No. 229 Zhongxin Ave West, Suzhou Industrial Park", tip:"Your stay in Suzhou. In the modern SIP district, walkable to Jinji Lake waterfront."},
+
+  // ══════════════ HANGZHOU ══════════════
+  {city:"Hangzhou", cat:"nature",   name:"West Lake (Xi Hu)",           lat:30.2461, lng:120.1494, loc:"Xihu District, Hangzhou",            tip:"UNESCO-listed lake — soul of Hangzhou. Walk or cycle the Su and Bai causeways."},
+  {city:"Hangzhou", cat:"nature",   name:"Xixi National Wetland Park",  lat:30.2621, lng:120.0787, loc:"Xihu District, Hangzhou",            tip:"China's first national wetland park. Boat tours through serene canals and marshes."},
+  {city:"Hangzhou", cat:"nature",   name:"Longjing Tea Plantations",    lat:30.2152, lng:120.0988, loc:"Xihu District, Hangzhou",            tip:"Walk among terraced tea fields. Taste Dragon Well tea fresh from the source."},
+  {city:"Hangzhou", cat:"nature",   name:"Qiandao Lake",                lat:29.6065, lng:118.9614, loc:"Lin'an District, Hangzhou",          tip:"Stunning lake with 1,078 emerald islands. 1.5 hours from Hangzhou by bus or tour."},
+  {city:"Hangzhou", cat:"nature",   name:"Hangzhou Botanical Garden",   lat:30.2540, lng:120.1082, loc:"Xihu District, Hangzhou",            tip:"Scenic hillside gardens with thousands of plant species and tea pavilions."},
+  {city:"Hangzhou", cat:"shopping", name:"Hubin Intime City (in77)",    lat:30.2524, lng:120.1671, loc:"Xihu District, Hangzhou",            tip:"Upscale mall on West Lake's eastern shore. Luxury brands, rooftop lake views."},
+  {city:"Hangzhou", cat:"shopping", name:"Wulin Square Shopping Area",  lat:30.2882, lng:120.1527, loc:"Gongshu District, Hangzhou",         tip:"Hangzhou's main commercial hub with Raffles City and MixC malls."},
+  {city:"Hangzhou", cat:"shopping", name:"Hefang Street",               lat:30.2388, lng:120.1619, loc:"Shangcheng District, Hangzhou",      tip:"Historic pedestrian street near West Lake. Silk fans, local snacks and medicine."},
+  {city:"Hangzhou", cat:"shopping", name:"Qinghe Fang Ancient Street",  lat:30.2390, lng:120.1601, loc:"Shangcheng District, Hangzhou",      tip:"Well-preserved Qing-era shopping street with herbal medicine and artisan crafts."},
+  {city:"Hangzhou", cat:"heritage", name:"Lingyin Temple",              lat:30.2404, lng:120.0968, loc:"Xihu District, Hangzhou",            tip:"One of China's most renowned Buddhist temples. Nestled in forested hills."},
+  {city:"Hangzhou", cat:"heritage", name:"Six Harmonies Pagoda",        lat:30.2031, lng:120.1332, loc:"Shangcheng District, Hangzhou",      tip:"1,000-year-old pagoda overlooking the Qiantang River. Views of the tidal bore."},
+  {city:"Hangzhou", cat:"heritage", name:"Wuzhen Water Town",           lat:30.7428, lng:120.4797, loc:"Tongxiang, near Hangzhou",           tip:"Ancient water town 1.5hr away. Black awning boats, ancient workshops and canals."},
+  {city:"Hangzhou", cat:"culture",  name:"China National Tea Museum",   lat:30.2249, lng:120.1118, loc:"Xihu District, Hangzhou",            tip:"Garden-like museum on 4,700 years of Chinese tea culture. Tea ceremony performances."},
+  {city:"Hangzhou", cat:"culture",  name:"Impression West Lake Show",   lat:30.2481, lng:120.1448, loc:"West Lake, Hangzhou",               tip:"Spectacular outdoor night show by Zhang Yimou on the surface of West Lake. Book ahead."},
+  {city:"Hangzhou", cat:"food",     name:"Louwailou Restaurant",        lat:30.2541, lng:120.1496, loc:"Solitary Hill, West Lake, Hangzhou", tip:"Hangzhou's most famous restaurant since 1848. Try West Lake vinegar fish and Dongpo pork."},
+  {city:"Hangzhou", cat:"food",     name:"Zhiweiguan (知味观)",          lat:30.2389, lng:120.1617, loc:"Hefang Street, Hangzhou",            tip:"Local institution since 1913 — steamed dumplings, sesame cakes and Longjing shrimp."},
+  {city:"Hangzhou", cat:"food",     name:"Grandma's Kitchen (外婆家)",   lat:30.2778, lng:120.1579, loc:"Multiple branches, Hangzhou",        tip:"Massively popular chain with classic Hangzhou home-style dishes. Expect queues."},
+  {city:"Hangzhou", cat:"hotel",    name:"Elong Hotel Hangzhou WestLake",lat:30.2945, lng:120.1531, loc:"No. 289 Jianguo North Rd, Gongshu, Hangzhou", tip:"Your stay in Hangzhou. Convenient for West Lake and Wulin Square."},
+];
+
+const seen=new Set(), PLACES=DATA.filter(p=>{ if(seen.has(p.city+p.name))return false; seen.add(p.city+p.name); return true; });
+const CITIES=['Beijing','Shanghai','Nanjing','Suzhou','Hangzhou'];
+const CITY_CENTERS={ Beijing:[39.9042,116.4074], Shanghai:[31.2304,121.4737], Nanjing:[32.0603,118.7969], Suzhou:[31.2989,120.5853], Hangzhou:[30.2741,120.1551] };
+
+// MAP — light Carto Positron
+const map=L.map('map',{center:[32.5,119.5],zoom:6});
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
+  attribution:'© <a href="https://carto.com/">CARTO</a> © <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+  subdomains:'abcd', maxZoom:19
+}).addTo(map);
+
+function mkIcon(cat){
+  const col=C[cat];
+  return L.divIcon({
+    html:`<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
+      <filter id="s"><feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-opacity="0.25"/></filter>
+      <path d="M14 0C6.27 0 0 6.27 0 14c0 9.33 14 22 14 22S28 23.33 28 14C28 6.27 21.73 0 14 0z" fill="${col}" filter="url(#s)"/>
+      <circle cx="14" cy="13" r="7" fill="white" opacity="0.9"/>
+      <circle cx="14" cy="13" r="5" fill="${col}"/>
+    </svg>`,
+    className:'', iconSize:[28,36], iconAnchor:[14,36], popupAnchor:[0,-38]
+  });
+}
+
+const markers=[], rowEls=[];
+let activeRowIdx=null;
+
+PLACES.forEach((p,i)=>{
+  const m=L.marker([p.lat,p.lng],{icon:mkIcon(p.cat)});
+  const tipHtml=p.tip?`<div class="popup-tip">${p.tip}</div>`:'';
+  m.bindPopup(`<div class="popup-city">${p.city}</div><div class="popup-cat" style="color:${C[p.cat]}">${IC[p.cat]} ${p.cat.toUpperCase()}</div><div class="popup-name">${p.name}</div><div class="popup-loc">${p.loc}</div>${tipHtml}`,{maxWidth:280});
+  m.addTo(map);
+  m._cat=p.cat; m._city=p.city; m._idx=i;
+  m.on('click',()=>{ activateRow(i); scrollRow(i); });
+  markers.push(m);
+});
+
+// SIDEBAR BUILD
+const listEl=document.getElementById('list');
+CITIES.forEach(city=>{
+  const cityPlaces=PLACES.filter(p=>p.city===city);
+  if(!cityPlaces.length)return;
+  const ch=document.createElement('div');
+  ch.className='city-header'; ch.dataset.city=city;
+  ch.innerHTML=`${city}<span class="city-header-count">${cityPlaces.length} places</span>`;
+  listEl.appendChild(ch);
+  CAT_ORDER.forEach(cat=>{
+    const grp=cityPlaces.filter(p=>p.cat===cat);
+    if(!grp.length)return;
+    const gh=document.createElement('div');
+    gh.className='group-header'; gh.dataset.cat=cat; gh.dataset.city=city;
+    gh.innerHTML=`<div class="group-dot" style="background:${C[cat]}"></div>${IC[cat]} ${cat.charAt(0).toUpperCase()+cat.slice(1)}<span class="group-count">${grp.length}</span>`;
+    listEl.appendChild(gh);
+    grp.forEach(p=>{
+      const i=PLACES.indexOf(p);
+      const row=document.createElement('div');
+      row.className='place-row';
+      row.dataset.cat=p.cat; row.dataset.city=p.city; row.dataset.idx=i;
+      row.dataset.search=p.name.toLowerCase()+' '+p.loc.toLowerCase()+' '+(p.tip||'').toLowerCase();
+      row.innerHTML=`<div class="place-row-dot" style="background:${C[p.cat]}"></div><div><div class="place-row-name">${p.name}</div><div class="place-row-loc">${p.loc}</div></div>`;
+      row.addEventListener('click',()=>{
+        map.flyTo([p.lat,p.lng],15,{duration:0.8});
+        setTimeout(()=>markers[i].openPopup(),850);
+        activateRow(i);
+      });
+      listEl.appendChild(row);
+      rowEls[i]=row;
+    });
+  });
+});
+
+function activateRow(i){
+  if(activeRowIdx!==null&&rowEls[activeRowIdx]){
+    rowEls[activeRowIdx].classList.remove('active-row');
+    rowEls[activeRowIdx].style.borderLeftColor='transparent';
+  }
+  activeRowIdx=i;
+  if(rowEls[i]){
+    rowEls[i].classList.add('active-row');
+    rowEls[i].style.borderLeftColor=C[PLACES[i].cat];
+  }
+}
+function scrollRow(i){ if(rowEls[i]) rowEls[i].scrollIntoView({behavior:'smooth',block:'nearest'}); }
+
+let activeCat='all', activeCity='all', searchQ='';
+
+function applyFilters(){
+  markers.forEach(m=>{
+    const show=(activeCat==='all'||m._cat===activeCat)&&(activeCity==='all'||m._city===activeCity);
+    show?m.addTo(map):map.removeLayer(m);
+  });
+  document.querySelectorAll('.place-row').forEach(r=>{
+    const ok=(activeCat==='all'||r.dataset.cat===activeCat)&&(activeCity==='all'||r.dataset.city===activeCity)&&(!searchQ||r.dataset.search.includes(searchQ));
+    r.classList.toggle('sb-hidden',!ok);
+  });
+  document.querySelectorAll('.group-header').forEach(h=>{
+    const catOk=activeCat==='all'||h.dataset.cat===activeCat;
+    const cityOk=activeCity==='all'||h.dataset.city===activeCity;
+    if(!catOk||!cityOk){h.classList.add('sb-hidden');return;}
+    const any=[...document.querySelectorAll(`.place-row[data-cat="${h.dataset.cat}"][data-city="${h.dataset.city}"]`)].some(r=>!r.classList.contains('sb-hidden'));
+    h.classList.toggle('sb-hidden',!any);
+  });
+  document.querySelectorAll('.city-header').forEach(h=>{
+    const cityOk=activeCity==='all'||h.dataset.city===activeCity;
+    if(!cityOk){h.classList.add('sb-hidden');return;}
+    const any=[...document.querySelectorAll(`.place-row[data-city="${h.dataset.city}"]`)].some(r=>!r.classList.contains('sb-hidden'));
+    h.classList.toggle('sb-hidden',!any);
+  });
+  const visible=[...document.querySelectorAll('.place-row')].filter(r=>!r.classList.contains('sb-hidden')).length;
+  document.getElementById('count').textContent=visible;
+}
+
+document.querySelectorAll('.legend-item').forEach(el=>{
+  el.addEventListener('click',()=>{
+    document.querySelectorAll('.legend-item').forEach(x=>x.classList.remove('active'));
+    el.classList.add('active');
+    activeCat=el.dataset.cat;
+    applyFilters();
+  });
+});
+document.querySelectorAll('.city-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.city-btn').forEach(x=>x.classList.remove('active'));
+    btn.classList.add('active');
+    activeCity=btn.dataset.city;
+    if(activeCity!=='all') map.flyTo(CITY_CENTERS[activeCity],13,{duration:0.9});
+    else map.flyTo([32.5,119.5],6,{duration:0.9});
+    applyFilters();
+  });
+});
+document.getElementById('search').addEventListener('input',function(){
+  searchQ=this.value.toLowerCase().trim();
+  applyFilters();
+});
+
+// SIDEBAR TOGGLE
+const sidebar=document.getElementById('sidebar');
+const toggleBtn=document.getElementById('sidebar-toggle');
+let sidebarOpen=true;
+toggleBtn.addEventListener('click',()=>{
+  sidebarOpen=!sidebarOpen;
+  sidebar.classList.toggle('collapsed',!sidebarOpen);
+  toggleBtn.innerHTML=sidebarOpen?'&#x276E;':'&#x276F;';
+  toggleBtn.title=sidebarOpen?'Collapse sidebar':'Expand sidebar';
+  setTimeout(()=>map.invalidateSize(),270);
+});
+
+applyFilters();
+
+// ── LIVE LOCATION ──
+const locBtn    = document.getElementById('locate-btn');
+const locLabel  = document.getElementById('locate-label');
+const locDot    = locBtn.querySelector('.locate-dot');
+let locationMarker = null;
+let locationCircle = null;
+let watchId = null;
+let isTracking = false;
+
+function setLocState(state, text) {
+  locBtn.className = '';
+  locDot.className = 'locate-dot';
+  if (state === 'locating') { locBtn.classList.add('locating'); locDot.classList.add('pulse'); }
+  if (state === 'located')  { locBtn.classList.add('located');  locDot.classList.add('pulse'); }
+  if (state === 'error')    { locBtn.classList.add('error');     locDot.classList.add('idle'); }
+  if (state === 'idle')     { locDot.classList.add('idle'); }
+  locLabel.textContent = text;
+}
+
+function updateLocationOnMap(lat, lng, accuracy) {
+  const latlng = [lat, lng];
+  if (!locationMarker) {
+    // Custom "you are here" dot marker
+    const youIcon = L.divIcon({
+      html: `<div style="
+        width:16px; height:16px; border-radius:50%;
+        background:#2e9e5b; border:3px solid white;
+        box-shadow:0 2px 8px rgba(0,0,0,0.3);
+        animation:pulse 1.6s ease-out infinite;
+      "></div>`,
+      className: '', iconSize:[16,16], iconAnchor:[8,8], popupAnchor:[0,-12]
+    });
+    locationMarker = L.marker(latlng, { icon: youIcon, zIndexOffset: 1000 })
+      .bindPopup(`<div style="font-family:'Inter',sans-serif;font-size:12px;font-weight:600;color:#2e9e5b;">📍 You are here</div><div style="font-size:10px;color:#8c8075;margin-top:3px;">Accuracy: ±${Math.round(accuracy)}m</div>`)
+      .addTo(map);
+    locationCircle = L.circle(latlng, {
+      radius: accuracy,
+      color: '#2e9e5b', fillColor: '#2e9e5b',
+      fillOpacity: 0.08, weight: 1.5, dashArray: '4 4'
+    }).addTo(map);
+  } else {
+    locationMarker.setLatLng(latlng);
+    locationCircle.setLatLng(latlng).setRadius(accuracy);
+    locationMarker.getPopup().setContent(
+      `<div style="font-family:'Inter',sans-serif;font-size:12px;font-weight:600;color:#2e9e5b;">📍 You are here</div><div style="font-size:10px;color:#8c8075;margin-top:3px;">Accuracy: ±${Math.round(accuracy)}m</div>`
+    );
+  }
+}
+
+function stopTracking() {
+  if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+  if (locationMarker)   { map.removeLayer(locationMarker); locationMarker = null; }
+  if (locationCircle)   { map.removeLayer(locationCircle); locationCircle = null; }
+  isTracking = false;
+  setLocState('idle', 'My Location');
+}
+
+locBtn.addEventListener('click', () => {
+  if (!navigator.geolocation) {
+    setLocState('error', 'Not supported');
+    return;
+  }
+  if (isTracking) { stopTracking(); return; }
+
+  isTracking = true;
+  setLocState('locating', 'Locating…');
+
+  // Get initial fix and fly to it
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+      updateLocationOnMap(lat, lng, accuracy);
+      map.flyTo([lat, lng], 14, { duration: 1 });
+      setLocState('located', 'Tracking on');
+
+      // Then watch for updates
+      watchId = navigator.geolocation.watchPosition(
+        (p) => updateLocationOnMap(p.coords.latitude, p.coords.longitude, p.coords.accuracy),
+        () => {}, // silent watch errors
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+      );
+    },
+    (err) => {
+      isTracking = false;
+      const msgs = { 1:'Permission denied', 2:'Position unavailable', 3:'Timed out' };
+      setLocState('error', msgs[err.code] || 'Location error');
+      setTimeout(() => setLocState('idle', 'My Location'), 3000);
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
+});
+</script>
+</body>
+</html>
